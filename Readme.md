@@ -2,6 +2,8 @@
 
 A deep learning-based energy consumption forecasting system that uses a **Bidirectional LSTM** neural network to predict household appliance energy usage one hour ahead, given 7 days (168 hours) of historical context.
 
+**Live Demo:** [energy-predictor-irx5dsbkakuufwd5nojgjb.streamlit.app](https://energy-predictor-irx5dsbkakuufwd5nojgjb.streamlit.app/)
+
 ## Overview
 
 This project trains a Bidirectional LSTM model on the [Appliances Energy Prediction dataset](https://archive.ics.uci.edu/ml/datasets/Appliances+energy+prediction) (shifted to 2026) and serves predictions through an interactive Streamlit web dashboard.
@@ -24,7 +26,9 @@ Energy-Predictor/
 ├── energydata_complete.csv      # Dataset (19,735 records, 10-min intervals, Jan–May 2026)
 ├── energy_predictor_lstm.h5     # Pre-trained LSTM model
 ├── preprocessing_scalers.pkl    # Saved MinMaxScaler objects
-├── requirements.txt             # Python dependencies
+├── requirements.txt             # Python dependencies (pinned for deployment)
+├── runtime.txt                  # Python version for Streamlit Cloud (3.11)
+├── .streamlit/config.toml       # Streamlit server and theme config
 └── Readme.md
 ```
 
@@ -77,7 +81,7 @@ Output: Predicted energy (log-scaled Wh)
 
 ### Prerequisites
 
-- Python 3.8+
+- Python 3.11+
 
 ### Installation
 
@@ -100,7 +104,7 @@ This will:
 4. Evaluate on a 20% held-out test set (prints RMSE and MAE)
 5. Save `energy_predictor_lstm.h5` and `preprocessing_scalers.pkl`
 
-### Run the Web App
+### Run the Web App Locally
 
 ```bash
 streamlit run app.py
@@ -112,12 +116,42 @@ The dashboard lets you:
 - See outdoor conditions at the selected time
 - Explore an interactive chart of the last 24 hours plus the forecast
 
+## Deployment
+
+The app is deployed on **Streamlit Community Cloud**.
+
+### How to Deploy
+
+1. **Push to GitHub:**
+   ```bash
+   git init
+   git add .
+   git commit -m "Initial commit"
+   git remote add origin https://github.com/<your-username>/Energy-Predictor.git
+   git branch -M main
+   git push -u origin main
+   ```
+
+2. **Deploy on Streamlit Cloud:**
+   - Go to [share.streamlit.io](https://share.streamlit.io) and sign in with GitHub
+   - Click **"New app"**
+   - Select your repository, branch (`main`), and main file (`app.py`)
+   - Click **"Deploy"**
+
+3. **Key deployment files:**
+   - `runtime.txt` — sets Python 3.11 (required for TensorFlow compatibility)
+   - `requirements.txt` — pinned minimum versions to avoid dependency conflicts
+   - `.streamlit/config.toml` — headless server config for cloud environment
+
+The app will be live at `https://<your-app-name>.streamlit.app`
+
 ## Tech Stack
 
 - **Deep Learning:** TensorFlow / Keras
 - **Data Processing:** Pandas, NumPy, scikit-learn
 - **Visualization:** Plotly, Matplotlib, Seaborn
 - **Web App:** Streamlit
+- **Deployment:** Streamlit Community Cloud
 
 ## Evaluation
 
