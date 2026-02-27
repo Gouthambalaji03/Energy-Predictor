@@ -3,7 +3,7 @@ import numpy as np
 import pickle
 import pandas as pd
 import plotly.graph_objects as go
-from keras.models import load_model
+from tensorflow.keras.models import load_model
 import os
 
 # ----------------------------
@@ -24,7 +24,7 @@ SEQ_LENGTH = 168
 # ----------------------------
 # Load Resources
 # ----------------------------
-@st.cache_resource
+@st.cache_resource(ttl=60)
 def load_resources():
     try:
         if not os.path.exists("energy_predictor_lstm.h5"):
@@ -64,7 +64,7 @@ def load_resources():
             'Windspeed', 'Visibility', 'Tdewpoint', 'rv1', 'rv2'
         ]
 
-        df_hourly = df[dataset_features].resample("H").mean().dropna()
+        df_hourly = df[dataset_features].resample("h").mean().dropna()
 
         # Cyclical features
         df_hourly["Hour_Sin"] = np.sin(2 * np.pi * df_hourly.index.hour / 24)
@@ -72,8 +72,36 @@ def load_resources():
         df_hourly["Day_Sin"]  = np.sin(2 * np.pi * df_hourly.index.dayofweek / 7)
         df_hourly["Day_Cos"]  = np.cos(2 * np.pi * df_hourly.index.dayofweek / 7)
 
+        # Month cyclical
+        df_hourly["Month_Sin"] = np.sin(2 * np.pi * df_hourly.index.month / 12)
+        df_hourly["Month_Cos"] = np.cos(2 * np.pi * df_hourly.index.month / 12)
+
+        # Weekend and peak flags
+        df_hourly["Is_Weekend"] = (df_hourly.index.dayofweek >= 5).astype(float)
+        hour = df_hourly.index.hour
+        df_hourly["Is_Peak"] = ((hour >= 7) & (hour <= 9) | (hour >= 17) & (hour <= 21)).astype(float)
+
+        # Rolling statistics
+        df_hourly["Rolling_Mean_6h"] = df_hourly["Appliances_Log"].rolling(6, min_periods=1).mean()
+        df_hourly["Rolling_Std_6h"] = df_hourly["Appliances_Log"].rolling(6, min_periods=1).std().fillna(0)
+        df_hourly["Rolling_Mean_24h"] = df_hourly["Appliances_Log"].rolling(24, min_periods=1).mean()
+
+        # Temperature differential
+        df_hourly["Temp_Diff"] = df_hourly["T1"] - df_hourly["T_out"]
+
+        # Lag features
+        df_hourly["Lag_24h"] = df_hourly["Appliances_Log"].shift(24).bfill()
+        df_hourly["Lag_168h"] = df_hourly["Appliances_Log"].shift(168).bfill()
+
+        df_hourly = df_hourly.dropna()
+
         final_cols = dataset_features + [
-            "Hour_Sin", "Hour_Cos", "Day_Sin", "Day_Cos"
+            "Hour_Sin", "Hour_Cos", "Day_Sin", "Day_Cos",
+            "Month_Sin", "Month_Cos",
+            "Is_Weekend", "Is_Peak",
+            "Rolling_Mean_6h", "Rolling_Std_6h", "Rolling_Mean_24h",
+            "Temp_Diff",
+            "Lag_24h", "Lag_168h"
         ]
 
         return model, scalers, df_hourly[final_cols]

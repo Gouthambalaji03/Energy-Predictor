@@ -4,11 +4,11 @@ import matplotlib.pyplot as plt
 import pickle
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error
-from keras.models import Sequential
-from keras.layers import LSTM, Dense, Dropout, BatchNormalization, Bidirectional
-from keras.callbacks import EarlyStopping, ReduceLROnPlateau
-from keras.optimizers import Adam
-from keras.losses import Huber
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense, Dropout, BatchNormalization, Bidirectional
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.losses import Huber
 
 
 # --- 1. Data Loading ---
@@ -26,7 +26,7 @@ dataset_features = [
     'Tdewpoint', 'rv1', 'rv2'
 ]
 
-df_hourly = df[dataset_features].resample("H").mean().dropna()
+df_hourly = df[dataset_features].resample("h").mean().dropna()
 
 # Cyclical Features
 df_hourly['Hour_Sin'] = np.sin(2 * np.pi * df_hourly.index.hour / 24)
@@ -34,7 +34,39 @@ df_hourly['Hour_Cos'] = np.cos(2 * np.pi * df_hourly.index.hour / 24)
 df_hourly['Day_Sin']  = np.sin(2 * np.pi * df_hourly.index.dayofweek / 7)
 df_hourly['Day_Cos']  = np.cos(2 * np.pi * df_hourly.index.dayofweek / 7)
 
-all_features = dataset_features + ['Hour_Sin', 'Hour_Cos', 'Day_Sin', 'Day_Cos']
+# Month cyclical (captures seasonal patterns)
+df_hourly['Month_Sin'] = np.sin(2 * np.pi * df_hourly.index.month / 12)
+df_hourly['Month_Cos'] = np.cos(2 * np.pi * df_hourly.index.month / 12)
+
+# Weekend flag (binary: 1 = weekend, 0 = weekday)
+df_hourly['Is_Weekend'] = (df_hourly.index.dayofweek >= 5).astype(float)
+
+# Peak hours flag (7-9 AM and 17-21 PM typical high-usage windows)
+hour = df_hourly.index.hour
+df_hourly['Is_Peak'] = ((hour >= 7) & (hour <= 9) | (hour >= 17) & (hour <= 21)).astype(float)
+
+# Rolling statistics (captures recent trends — forward-looking context)
+df_hourly['Rolling_Mean_6h'] = df_hourly['Appliances_Log'].rolling(6, min_periods=1).mean()
+df_hourly['Rolling_Std_6h'] = df_hourly['Appliances_Log'].rolling(6, min_periods=1).std().fillna(0)
+df_hourly['Rolling_Mean_24h'] = df_hourly['Appliances_Log'].rolling(24, min_periods=1).mean()
+
+# Temperature differential (indoor vs outdoor — proxy for HVAC load)
+df_hourly['Temp_Diff'] = df_hourly['T1'] - df_hourly['T_out']
+
+# Lag features (energy at same hour yesterday and a week ago)
+df_hourly['Lag_24h'] = df_hourly['Appliances_Log'].shift(24).bfill()
+df_hourly['Lag_168h'] = df_hourly['Appliances_Log'].shift(168).bfill()
+
+df_hourly = df_hourly.dropna()
+
+all_features = dataset_features + [
+    'Hour_Sin', 'Hour_Cos', 'Day_Sin', 'Day_Cos',
+    'Month_Sin', 'Month_Cos',
+    'Is_Weekend', 'Is_Peak',
+    'Rolling_Mean_6h', 'Rolling_Std_6h', 'Rolling_Mean_24h',
+    'Temp_Diff',
+    'Lag_24h', 'Lag_168h'
+]
 dataset = df_hourly[all_features]
 
 # --- 2. Normalization ---
